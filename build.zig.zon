@@ -1,8 +1,5 @@
 .{
     .name = "webui",
-    .version = "2.4.2",
-    .dependencies = .{},
-    .paths = .{
-        "",
-    },
+    .version = "2.5.0-beta.2",
+    .paths = .{""},
 }

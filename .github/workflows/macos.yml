@@ -1,8 +1,9 @@
-# http://webui.me
+# https://webui.me
 # https://github.com/webui-dev/webui
-# Copyright (c) 2020-2023 Hassan Draga.
+# Copyright (c) 2020-2024 Hassan Draga.
 # Licensed under MIT License.
 # All rights reserved.
+# Canada.
 #
 # Special Thanks to Turiiya (https://github.com/ttytm)
 
@@ -14,13 +15,13 @@ jobs:
   setup:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Bundle WebUI Bridge
         run: |
           npm i -g esbuild
           chmod +x bridge/build.sh
           bridge/build.sh
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: bridge/webui_bridge.h
           key: ${{ runner.os }}-${{ github.sha }}-bridge
@@ -32,43 +33,73 @@ jobs:
       contents: write
     strategy:
       matrix:
-        compiler: [Clang]
+        cc: [clang]
         arch: [x64, arm64]
+      fail-fast: false
+    env:
+      ARTIFACT: webui-macos-${{ matrix.cc }}-${{ matrix.arch }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache/restore@v3
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
         with:
           path: bridge/webui_bridge.h
           key: ${{ runner.os }}-${{ github.sha }}-bridge
           fail-on-cache-miss: true
+      - name: Setup OpenSSL
+        run: |
+          echo "WEBUI_TLS_INCLUDE=$(brew --cellar)/openssl@1.1/1.1.1w/include/" >> $GITHUB_ENV
+          echo "WEBUI_TLS_LIB=$(brew --cellar)/openssl@1.1/1.1.1w/lib/" >> $GITHUB_ENV
       - name: Build Debug Target
         run: make ARCH_TARGET=${{ matrix.arch }} debug
       - name: Build Release Target
+        if: ${{ !cancelled() }}
         run: make ARCH_TARGET=${{ matrix.arch }}
+      - name: Build TLS Debug Target
+        run: make WEBUI_USE_TLS=1 debug
+      - name: Build TLS Release Target
+        run: make WEBUI_USE_TLS=1
+      - name: Build examples
+        run: |
+          examples_base_dir=$(pwd)/examples/C
+          for example in $(find $examples_base_dir/* -maxdepth 0 -type d); do
+            echo "> $example"
+            cd $example || (exit_code=1 && continue)
+            if ! make; then
+               echo "Failed to build '$example'"
+               exit_code=1
+               continue
+            fi
+            if [[ ! -e "main" || ! -e "main-dyn" ]] ; then
+              echo "Failed to find executable for '$example'" && find .
+              exit_code=1
+              continue
+            fi
+          done
+          exit $exit_code
       - name: Prepare Artifacts
         run: |
           cp -r include dist
-          # Add the ARTIFACT name(lowercased) as GitHub environment variable.
-          artifact=webui-$(echo ${{ runner.os }}-${{ matrix.compiler }}-${{ matrix.arch }} | tr '[:upper:]' '[:lower:]')
-          echo "ARTIFACT=$artifact" >> $GITHUB_ENV
-          mv dist/ $artifact
+          mv dist/ "$ARTIFACT"
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT }}
           path: ${{ env.ARTIFACT }}
       - name: Prepare Release
-        if: github.ref_type == 'tag' || (github.ref_name == 'main' && github.event_name == 'push')
+        if: >
+          github.repository_owner == 'webui-dev'
+          && (github.ref_type == 'tag' || (github.ref_name == 'main' && github.event_name == 'push'))
         run: |
-          zip -r ${{ env.ARTIFACT }}.zip ${{ env.ARTIFACT }}
+          zip -r "$ARTIFACT.zip" "$ARTIFACT"
           if [ $GITHUB_REF_TYPE == tag ]; then
             echo "TAG=$GITHUB_REF_NAME" >> $GITHUB_ENV
           else
-            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
-            now=$(date -u +'%Y-%m-%d %H:%M:%S UTC')
-            echo "TAG=nightly" >> $GITHUB_ENV
-            echo "BODY=Generated on <samp>$now</samp> from commit ${{ github.sha }}." >> $GITHUB_ENV
-            echo "TITLE=WebUI Development Build" >> $GITHUB_ENV
+            {
+              echo "IS_PRERELEASE=true";
+              echo "TAG=nightly";
+              echo "TITLE=WebUI Nightly Build $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+              echo "BODY=Generated from commit $GITHUB_SHA."
+            } >> $GITHUB_ENV
           fi
       - name: Update Nightly Tag
         if: env.IS_PRERELEASE
@@ -78,7 +109,9 @@ jobs:
         with:
           tag_name: nightly
       - name: Release
-        if: github.ref_type == 'tag' || (github.ref_name == 'main' && github.event_name == 'push')
+        if: >
+          github.repository_owner == 'webui-dev'
+          && (github.ref_type == 'tag' || (github.ref_name == 'main' && github.event_name == 'push'))
         uses: ncipollo/release-action@v1
         with:
           artifacts: ${{ env.ARTIFACT }}.zip

@@ -1,10 +1,11 @@
 #!/bin/bash
 
-# http://webui.me
+# https://webui.me
 # https://github.com/webui-dev/webui
-# Copyright (c) 2020-2023 Hassan Draga.
+# Copyright (c) 2020-2024 Hassan Draga.
 # Licensed under MIT License.
 # All rights reserved.
+# Canada.
 #
 # Special Thanks to Turiiya (https://github.com/ttytm)
 
@@ -28,7 +29,7 @@ done
 if [ "$silent" = true ]; then log_level=--log-level=warning; fi
 
 if [ "$silent" != true ]; then echo "Transpile and bundle TS sources to webui.js"; fi
-esbuild --bundle --target="chrome90,firefox90,safari15" --format=esm --tree-shaking=false --outdir=. ./webui_bridge.ts $log_level
+esbuild --bundle --target="chrome90,firefox90,safari15" --format=esm --tree-shaking=false --minify-syntax --minify-whitespace --outdir=. ./webui.ts $log_level
 
 if [ "$silent" != true ]; then echo "Convert JS source to C header"; fi
 python3 js2c.py

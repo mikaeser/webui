@@ -66,7 +66,13 @@
 		By a simple HTTP request "deno_test.ts?foo=60&bar=40"
 		<br />
 		<br />
-		<button OnClick="call_deno_file();">deno_test.ts (Local file)</button>
+		<button OnClick="call_deno_file();">Deno_test.ts (Local file)</button>
+		<br />
+		<br />
+		<button OnClick="call_bun_file();">Bun_test.ts (Local file)</button>
+		<br />
+		<br />
+		<button OnClick="call_nodejs_file();">Nodejs_test.ts (Local file)</button>
 		<br />
 		<h4><a href="second.html">Second Page As A Simple Link (Local file)</a></h4>
 		<br />
@@ -79,43 +85,109 @@
 		<h4><a href="dynamic.html">Dynamic file example (Embedded)</a></h4>
 		<p>
 			Unicode Test:<br /><br />
-			مرحبًا<br />
-			<!-- Arabic -->
-			你好<br />
-			<!-- Chinese -->
-			こんにちは
-			<!-- Japanese -->
+			مرحبًا<br /> <!-- Arabic -->
+			你好<br /> <!-- Chinese -->
+			こんにちは <!-- Japanese -->
 		</p>
 	</body>
 
 	<!-- Connect this window to the background app -->
-	<script src="webui.js"></script>
+	<script src="/webui.js"></script>
 
 	<script>
-		function call_deno_file() {
-			// Because `main.c` set Deno as the `.ts` and `.js` interpreter
-			// then a simple HTTP request to `/deno_test.ts` will be parsed
-			// of course Deno should be installed.
 
+		function call_deno_file() {
+			// Note:
+			// You need to set Deno as default runtime in the backend
 			// Simple HTTP Request
 			var xmlHttp = new XMLHttpRequest();
-			xmlHttp.open('GET', 'deno_test.ts?foo=60&bar=40', false);
+			xmlHttp.open('GET', 'deno_test.ts?foo=123&bar=456', false);
 			xmlHttp.send(null);
 			alert(xmlHttp.responseText);
 		}
 
+		function call_bun_file() {
+			// Note:
+			// You need to set Bun as default runtime in the backend
+			// Simple HTTP Request
+			var xmlHttp = new XMLHttpRequest();
+			xmlHttp.open('GET', 'bun_test.ts?foo=123&bar=456', false);
+			xmlHttp.send(null);
+			alert(xmlHttp.responseText);
+		}
+
+		function call_nodejs_file() {
+			// Note:
+			// You need to set Nodejs as default runtime in the backend
+			// Simple HTTP Request
+			var xmlHttp = new XMLHttpRequest();
+			xmlHttp.open('GET', 'node_test.js?foo=123&bar=456', false);
+			xmlHttp.send(null);
+			alert(xmlHttp.responseText);
+		}
+
+		// JavaScript Example
+		/*
 		document.addEventListener('DOMContentLoaded', function() {
-			// DOM is loaded, and `webui` object should be available.
-			webui.setEventCallback((e) => {
-				if (e == webui.event.CONNECTED) {
-					// Connection to the backend is established
-					console.log('Connected.');
-				} else if (e == webui.event.DISCONNECTED) {
-					// Connection to the backend is lost
-					console.log('Disconnected.');
-				}
-			});
+			// DOM is loaded. Check if `webui` object is available
+			if (typeof webui !== 'undefined') {
+				// Set events callback
+				webui.setEventCallback((e) => {
+					if (e == webui.event.CONNECTED) {
+						// Connection to the backend is established
+						console.log('Connected.');
+						webuiTest();
+					} else if (e == webui.event.DISCONNECTED) {
+						// Connection to the backend is lost
+						console.log('Disconnected.');
+					}
+				});
+			} else {
+				// The virtual file `webui.js` is not included
+				alert('Please add webui.js to your HTML.');
+			}
 		});
+
+		function webuiTest() {
+			// Call a backend function
+			if (webui.isConnected()) {
+
+				// When you bind a func in the backend
+				// webui will create the `func` object
+				// in three places:
+				//
+				// Global   : func(...)
+				// Property : webui.func(...)
+				// Method   : webui.call('func', ...)
+				//
+				// [!] Note: Objects creation fails when
+				// a similar object already exist.
+
+				const foo = 'Hello';
+				const bar = 123456;
+
+				// Calling as global object
+				myBackendFunction(foo, bar).then((response) => {
+					// Do something with `response`
+				});
+				
+				// Calling as property of `webui.` object
+				webui.myBackendFunction(foo, bar).then((response) => {
+					// Do something with `response`
+				});
+				
+				// Calling using the method `webui.call()`
+				webui.call('myBackendFunction', foo, bar).then((response) => {
+					// Do something with `response`
+				});
+				
+				// Using await
+				// const response = await myBackendFunction(foo, bar);
+				// const response = await webui.myBackendFunction(foo, bar);
+				// const response = await webui.call('myBackendFunction', foo, bar);
+			}
+		}
+		*/
 
 	</script>
 </html>

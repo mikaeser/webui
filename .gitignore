@@ -8,6 +8,14 @@ build/
 *.out
 *.def
 
+# All sub-level build binaries
+*/**/*
+!*/**/*/
+!*/**/*.*
+!*makefile
+!Makefile
+*/**/*.exe
+
 # Compiled Object files
 *.slo
 *.lo
@@ -40,6 +48,7 @@ build/
 *.recipe
 *.idb
 *.iobj
+*.pdb
 
 # Visual Studio for Mac
 .idea/
@@ -108,11 +117,12 @@ Thumbs.db
 # User-specific private settings
 *.DotSettings.user
 
-# Example binaries
-examples/**/main
-examples/**/main-dyn
-examples/**/text-editor/text-editor
-
 # Compressed
 *.zip
 *.gz
+
+# CMake
+**/cmake_install.cmake
+**/CMakeCache.txt
+**/CMakeFiles/
+.zig-cache

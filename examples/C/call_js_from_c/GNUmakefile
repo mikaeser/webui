@@ -35,7 +35,7 @@ ifeq ($(OS),Windows_NT)
 	DYN_BUILD_FLAGS += "$(WEBUI_LIB_NAME).dll" -lws2_32 -Wall -luser32
 	STATIC_OUT := main.exe
 	DYN_OUT := main-dyn.exe
-	LWS2_OPT := -lws2_32
+	LWS2_OPT := -lws2_32 -lOle32
 	STRIP_OPT := --strip-all
 	CONSOLE_APP := -Wl,-subsystem=console
 	GUI_APP := -Wl,-subsystem=windows
@@ -44,19 +44,19 @@ else
 	DYN_BUILD_FLAGS += -lpthread -lm
 	STATIC_OUT := main
 	DYN_OUT := main-dyn
-	CONSOLE_APP := 
-	GUI_APP := 
 	ifeq ($(shell uname),Darwin)
 		# MacOS
 		PLATFORM := macos
 		CC = clang
 		COPY_LIB_CMD := @cp "$(LIB_DIR)/$(WEBUI_LIB_NAME).dylib" "$(WEBUI_LIB_NAME).dylib"
 		DYN_BUILD_FLAGS += "./$(WEBUI_LIB_NAME).dylib"
+		WKWEBKIT_LINK_FLAGS := -framework Cocoa -framework WebKit
 	else
 		# Linux
 		PLATFORM := linux
 		COPY_LIB_CMD := @cp "$(LIB_DIR)/$(WEBUI_LIB_NAME).so" "$(WEBUI_LIB_NAME).so"
-		DYN_BUILD_FLAGS += "./$(WEBUI_LIB_NAME).so"
+		STATIC_BUILD_FLAGS += -ldl
+		DYN_BUILD_FLAGS += -ldl "./$(WEBUI_LIB_NAME).so"
 		STRIP_OPT := --strip-all
 		ifeq ($(CC),clang)
 			LLVM_OPT := llvm-
@@ -75,12 +75,12 @@ endif
 #	Static with Debug info
 ifneq ($(WEBUI_USE_TLS), 1)
 	@echo "Build C Example ($(CC) debug static)..."
-	@$(CC) -g $(CONSOLE_APP) $(STATIC_BUILD_FLAGS) $(LWS2_OPT) -o $(STATIC_OUT)
+	@$(CC) -g $(CONSOLE_APP) $(STATIC_BUILD_FLAGS) $(LWS2_OPT) $(WKWEBKIT_LINK_FLAGS) -o $(STATIC_OUT)
 endif
 #	Dynamic with Debug info
 	@echo "Build C Example ($(CC) debug dynamic)..."
 	$(COPY_LIB_CMD)
-	@$(CC) -g $(CONSOLE_APP) $(DYN_BUILD_FLAGS) $(LWS2_OPT) -o $(DYN_OUT)
+	@$(CC) -g $(CONSOLE_APP) $(DYN_BUILD_FLAGS) $(LWS2_OPT) $(WKWEBKIT_LINK_FLAGS) -o $(DYN_OUT)
 #	Clean
 ifeq ($(PLATFORM),windows)
 	@- del *.o >nul 2>&1
@@ -97,13 +97,13 @@ endif
 #	Static Release
 ifneq ($(WEBUI_USE_TLS), 1)
 	@echo "Build C Example ($(CC) release static)..."
-	@$(CC) -Os $(GUI_APP) $(STATIC_BUILD_FLAGS) $(LWS2_OPT) -o $(STATIC_OUT)
+	@$(CC) -Os $(GUI_APP) $(STATIC_BUILD_FLAGS) $(LWS2_OPT) $(WKWEBKIT_LINK_FLAGS) -o $(STATIC_OUT)
 	@$(LLVM_OPT)strip $(STRIP_OPT) $(STATIC_OUT)
 endif
 #	Dynamic Release
 	@echo "Build C Example ($(CC) release dynamic)..."
 	$(COPY_LIB_CMD)
-	@$(CC) $(GUI_APP) $(DYN_BUILD_FLAGS) $(LWS2_OPT) -o $(DYN_OUT)
+	@$(CC) $(GUI_APP) $(DYN_BUILD_FLAGS) $(LWS2_OPT) $(WKWEBKIT_LINK_FLAGS) -o $(DYN_OUT)
 	@$(LLVM_OPT)strip $(STRIP_OPT) $(DYN_OUT)
 #	Clean
 ifeq ($(PLATFORM),windows)

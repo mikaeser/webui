@@ -1,8 +1,9 @@
-# http://webui.me
+# https://webui.me
 # https://github.com/webui-dev/webui
-# Copyright (c) 2020-2023 Hassan Draga.
+# Copyright (c) 2020-2024 Hassan Draga.
 # Licensed under MIT License.
 # All rights reserved.
+# Canada.
 #
 # Special Thanks to Turiiya (https://github.com/ttytm)
 
@@ -59,7 +60,7 @@ if (-not (Test-Path "$project_root\bridge\node_modules\esbuild")) {
 
 # Transpile WebUI-Bridge (TS to JS)
 if (!$silent) { Write-Host "Transpile and bundle WebUI-Bridge from TypeScript to JavaScript..." }
-.\node_modules\.bin\esbuild --bundle --target="chrome90,firefox90,safari15" --format=esm --tree-shaking=false --outdir=. ./webui_bridge.ts $log_level
+.\node_modules\.bin\esbuild --bundle --target="chrome90,firefox90,safari15" --format=esm --tree-shaking=false --minify-syntax --minify-whitespace --outdir=. ./webui.ts $log_level
 
 # Convert WebUI-Bridge (JS to C)
 if (!$silent) { Write-Host "Convert WebUI-Bridge JavaScript to C Header..." }

@@ -6,8 +6,8 @@ WEBUI_OUT_LIB_NAME = webui-2
 
 # TLS
 WEBUI_USE_TLS =
-WEBUI_TLS_INCLUDE = .
-WEBUI_TLS_LIB = .
+WEBUI_TLS_INCLUDE ?= .
+WEBUI_TLS_LIB ?= .
 TLS_CFLAG = -DNO_SSL
 TLS_LDFLAG_DYNAMIC =
 ifeq ($(WEBUI_USE_TLS), 1)
@@ -25,10 +25,13 @@ MAKEFILE_DIR := $(dir $(MAKEFILE_PATH))
 BUILD_DIR := $(MAKEFILE_DIR)/dist
 
 # ARGS
-# Set a compiler when running on Linux via `make CC=gcc` / `make CC=clang`
-CC = gcc
-ifneq ($(filter $(CC),gcc clang aarch64-linux-gnu-gcc arm-linux-gnueabihf-gcc musl-gcc),$(CC))
-$(error Invalid compiler specified: `$(CC)`)
+CC ?= gcc
+ifeq ($(CC), cc)
+	ifeq ($(shell uname),Darwin)
+		CC = clang
+	else
+		CC = gcc
+	endif
 endif
 
 # Allow to add arch-target for macOS CI cross compilation
@@ -37,7 +40,9 @@ ARCH_TARGET ?=
 # BUILD FLAGS
 CIVETWEB_BUILD_FLAGS := -o civetweb.o -I"$(MAKEFILE_DIR)/include/" -c "$(MAKEFILE_DIR)/src/civetweb/civetweb.c" -I"$(WEBUI_TLS_INCLUDE)" $(TLS_CFLAG) -w
 CIVETWEB_DEFINE_FLAGS = -DNDEBUG -DNO_CACHING -DNO_CGI -DUSE_WEBSOCKET $(TLS_CFLAG)
-WEBUI_BUILD_FLAGS := -o webui.o -I"$(MAKEFILE_DIR)/include/" -c "$(MAKEFILE_DIR)/src/webui.c" -I"$(WEBUI_TLS_INCLUDE)" $(TLS_CFLAG) -w
+WEBUI_BUILD_FLAGS := -o webui.o -I"$(MAKEFILE_DIR)/include/" -c "$(MAKEFILE_DIR)/src/webui.c" -I"$(WEBUI_TLS_INCLUDE)" $(TLS_CFLAG)
+WARNING_RELEASE := -w
+WARNING_LOG := -Wall -Wno-unused
 
 # OUTPUT FILES
 # The static output is the same for all platforms
@@ -50,13 +55,16 @@ ifeq ($(OS),Windows_NT)
 	SHELL := CMD
 	PLATFORM := windows
 	LIB_DYN_OUT := $(WEBUI_OUT_LIB_NAME).dll
-	LWS2_OPT := -lws2_32
+	LWS2_OPT := -lws2_32 -lOle32
 	CIVETWEB_DEFINE_FLAGS += -DMUST_IMPLEMENT_CLOCK_GETTIME
 else ifeq ($(shell uname),Darwin)
 	# MacOS
 	PLATFORM := macos
 	CC = clang
 	LIB_DYN_OUT := $(WEBUI_OUT_LIB_NAME).dylib
+	WEBKIT_OBJ := wkwebview.o
+	WKWEBKIT_BUILD_FLAGS := -o wkwebview.o -c "$(MAKEFILE_DIR)/src/webview/wkwebview.m"
+	WKWEBKIT_LINK_FLAGS := -framework Cocoa -framework WebKit
 else
 	# Linux
 	PLATFORM := linux
@@ -93,19 +101,25 @@ ifeq ($(PLATFORM),windows)
 else
 	@mkdir -p "$(BUILD_DIR)/debug"
 endif
+#	Build macOS WKWebView
+ifeq ($(shell uname),Darwin)
+	@cd "$(BUILD_DIR)/debug" \
+	&& echo "Build WebUI Objective-C WKWebKit ($(CC) $(TARGET)debug)..." \
+	&& $(CC) $(TARGET) $(WKWEBKIT_BUILD_FLAGS) -g -DWEBUI_LOG
+endif
 #	Static with Debug info
 	@cd "$(BUILD_DIR)/debug" \
 	&& echo "Build WebUI library ($(CC) $(TARGET)debug static)..." \
 	&& $(CC) $(TARGET) $(CIVETWEB_BUILD_FLAGS) $(CIVETWEB_DEFINE_FLAGS) -g \
-	&& $(CC) $(TARGET) $(WEBUI_BUILD_FLAGS) -g -DWEBUI_LOG \
-	&& $(LLVM_OPT)ar rc $(LIB_STATIC_OUT) webui.o civetweb.o \
+	&& $(CC) $(TARGET) $(WEBUI_BUILD_FLAGS) $(WARNING_LOG) -g -DWEBUI_LOG \
+	&& $(LLVM_OPT)ar rc $(LIB_STATIC_OUT) webui.o civetweb.o $(WEBKIT_OBJ) \
 	&& $(LLVM_OPT)ranlib $(LIB_STATIC_OUT)
 #	Dynamic with Debug info
 	@cd "$(BUILD_DIR)/debug" \
 	&& echo "Build WebUI library ($(CC) $(TARGET)debug dynamic)..." \
 	&& $(CC) $(TARGET) $(CIVETWEB_BUILD_FLAGS) $(CIVETWEB_DEFINE_FLAGS) -g -fPIC \
-	&& $(CC) $(TARGET) $(WEBUI_BUILD_FLAGS) -g -fPIC -DWEBUI_LOG \
-	&& $(CC) $(TARGET) -shared -o $(LIB_DYN_OUT) webui.o civetweb.o -g -L"$(WEBUI_TLS_LIB)" $(TLS_LDFLAG_DYNAMIC) $(LWS2_OPT)
+	&& $(CC) $(TARGET) $(WEBUI_BUILD_FLAGS) $(WARNING_LOG) -g -fPIC -DWEBUI_LOG -DWEBUI_DYNAMIC \
+	&& $(CC) $(TARGET) -shared -o $(LIB_DYN_OUT) webui.o civetweb.o $(WEBKIT_OBJ) -g -L"$(WEBUI_TLS_LIB)" $(TLS_LDFLAG_DYNAMIC) $(LWS2_OPT) $(WKWEBKIT_LINK_FLAGS)
 ifeq ($(PLATFORM),windows)
 	@cd "$(BUILD_DIR)/debug" && del *.o >nul 2>&1
 else
@@ -120,19 +134,25 @@ ifeq ($(PLATFORM),windows)
 else
 	@mkdir -p "$(BUILD_DIR)"
 endif
+#	Build macOS WKWebView
+ifeq ($(shell uname),Darwin)
+	@cd "$(BUILD_DIR)" \
+	&& echo "Build WebUI Objective-C WKWebKit ($(CC) $(TARGET)release)..." \
+	&& $(CC) $(TARGET) $(WKWEBKIT_BUILD_FLAGS) -Os
+endif
 #	Static Release
 	@cd "$(BUILD_DIR)" \
 	&& echo "Build WebUI library ($(CC) $(TARGET)release static)..." \
 	&& $(CC) $(TARGET) $(CIVETWEB_BUILD_FLAGS) $(CIVETWEB_DEFINE_FLAGS) -Os \
-	&& $(CC) $(TARGET) $(WEBUI_BUILD_FLAGS) -Os \
-	&& $(LLVM_OPT)ar rc $(LIB_STATIC_OUT) webui.o civetweb.o \
+	&& $(CC) $(TARGET) $(WEBUI_BUILD_FLAGS) $(WARNING_RELEASE) -Os \
+	&& $(LLVM_OPT)ar rc $(LIB_STATIC_OUT) webui.o civetweb.o $(WEBKIT_OBJ) \
 	&& $(LLVM_OPT)ranlib $(LIB_STATIC_OUT)
 #	Dynamic Release
 	@cd "$(BUILD_DIR)" \
 	&& echo "Build WebUI library ($(CC) $(TARGET)release dynamic)..." \
 	&& $(CC) $(TARGET) $(CIVETWEB_BUILD_FLAGS) $(CIVETWEB_DEFINE_FLAGS) -Os -fPIC \
-	&& $(CC) $(TARGET) $(WEBUI_BUILD_FLAGS) -O3 -fPIC \
-	&& $(CC) $(TARGET) -shared -o $(LIB_DYN_OUT) webui.o civetweb.o -L"$(WEBUI_TLS_LIB)" $(TLS_LDFLAG_DYNAMIC) $(LWS2_OPT)
+	&& $(CC) $(TARGET) $(WEBUI_BUILD_FLAGS) $(WARNING_RELEASE) -O3 -fPIC -DWEBUI_DYNAMIC \
+	&& $(CC) $(TARGET) -shared -o $(LIB_DYN_OUT) webui.o civetweb.o $(WEBKIT_OBJ) -L"$(WEBUI_TLS_LIB)" $(TLS_LDFLAG_DYNAMIC) $(LWS2_OPT) $(WKWEBKIT_LINK_FLAGS)
 #	Clean
 ifeq ($(PLATFORM),windows)
 	@strip --strip-unneeded $(BUILD_DIR)/$(LIB_DYN_OUT)
